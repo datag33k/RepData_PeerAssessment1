@@ -1,25 +1,198 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "PA1_template.Rmd"
+author: "S. Wransky"
+date: "March 14, 2015"
+output: html_document
 ---
 
 
-## Loading and preprocessing the data
+##**Introduction**
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
 
+##**Data**
 
-## What is mean total number of steps taken per day?
+The data for this assignment can be downloaded from the course web site:
+
+Dataset: Activity monitoring data [52K]
+The variables included in this dataset are:
+
+steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+
+date: The date on which the measurement was taken in YYYY-MM-DD format
+
+interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
 
 
+##**Analysis**
 
-## What is the average daily activity pattern?
+First we'll load some libraries.
+
+```{r, echo=TRUE}
+library(dplyr)
+library(stats)
+library(lubridate)
+```
+
+Now we'll load and pre-process our activity data. If the data file isn't available in the working directory, we'll download it.
+```{r, echo=TRUE}
+if (!file.exists("./activity.csv")) {
+  if (!file.exists("./activity.zip") | !file.exists("./repdata-data-activity.zip")) {
+    message("downloading data file...")
+    download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", "./activity.zip", method="curl")
+    unzip("./activity.zip")
+  }
+  else if (file.exists("./activity.zip")) { 
+    unzip("./activity.zip")
+  }
+  else if (file.exists("./repdata-data-activity.zip")) {
+    unzip("./repdata-data-activity.zip")
+  }
+}
+```
+
+Loading the data....
+```{r, echo=TRUE}
+dat <- read.csv("./activity.csv", stringsAsFactors=FALSE)
+```
+
+Next we'll ask a series of questions and look at the data for it.
 
 
+####**WHAT IS THE MEAN TOTAL NUMBER OF STEPS TAKEN PER DAY**
+We can ignore NAs in this scenario so...creating a new dataset with incomplete cases removed.
 
-## Imputing missing values
+```{r, echo=TRUE}
+dat1 <- dat[complete.cases(dat),]
+```
+
+And grouping by date using dpylr and getting the Mean # of steps per date.
+```{r, echo=TRUE}
+meanStepsByDay <- dat1 %>% group_by(date) %>% summarize(meansteps = mean(steps, na.rm=TRUE))
+```
+
+Now we'll plot the frequency of mean total steps in a histogram.
+```{r, echo=TRUE}
+hist(meanStepsByDay$meansteps, main="Total Steps", xlab="Total Steps", col="green")
+dev.print(png, file="./figures/plot1.png", width=480, height=480, pointsize=10)
+```
+
+Now calculate and report mean total steps taken.
+```{r, echo=TRUE}
+print (paste("Mean steps per day:", mean(meanStepsByDay$meansteps)))
+```
+
+Now calculate and report median total steps taken.
+```{r, echo=TRUE}
+print (paste("Median steps per day:", median(meanStepsByDay$meansteps)))
+```
 
 
+####**WHAT IS THE AVERAGE DAILY PATTERN**
 
-## Are there differences in activity patterns between weekdays and weekends?
+1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+
+Calculate mean interval.
+```{r, echo=TRUE}
+meanInterval <- dat %>% group_by(interval) %>% summarize(meansteps = mean(steps, na.rm=TRUE))
+```
+
+Make the interval a date/time for plotting and plot mean steps by time interval.
+```{r, echo=TRUE}
+mistr <- meanInterval
+mistr$interval <- as.POSIXlt(as.character(mistr$interval), tz="UTC", format="%H%M")
+plot(mistr, type="l", main="Average Steps per Time Interval", xlab="Time Interval", ylab="Avg Steps")
+dev.print(png, file="./figures/plot2.png", width=480, height=480, pointsize=10)
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r, echo=TRUE}
+print (paste("Interval with the maximum average steps: ", meanInterval[meanInterval$meansteps==max(meanInterval$meansteps),1]))
+```
+
+
+####**INPUTTING MISSING VALUES**
+
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs).
+```{r, echo=TRUE}
+print (paste("Total # of rows with missing data: ", nrow(dat[is.na(dat)==TRUE,])))
+```
+
+2. Devise a strategy for filling in all of the missing values in the dataset: Missing values will be replaced with mean steps per interval (using day alone still leaves misssing values).
+```{r, echo=TRUE}
+meanInterval <- dat %>% group_by(interval) %>% summarize(meansteps = mean(steps, na.rm=TRUE))
+```
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r, echo=TRUE}
+datNoNA <- dat
+for (i in 1:nrow(datNoNA)) {  
+  if (is.na(datNoNA[i,1])==TRUE) {
+    datNoNA[i,1] <- meanInterval[meanInterval$interval==datNoNA[i,3],2]   
+  } 
+}
+```
+
+4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and
+median total number of steps taken per day. Do these values differ from the estimates from the first
+part of the assignment? What is the impact of imputing missing data on the estimates of the total daily
+number of steps?
+```{r, echo=TRUE}
+hist(datNoNA$steps, main="Total Steps", xlab="Total Steps", col="blue")
+dev.print(png, file="./figures/plot3.png", width=480, height=480, pointsize=10)
+```
+
+Calculate and report mean total steps taken.
+```{r, echo=TRUE}
+print (paste("Mean steps per day:", mean(datNoNA$steps)))
+```
+
+Calculate and report median total steps taken.
+```{r, echo=TRUE}
+print (paste("Median steps per day:", median(datNoNA$steps)))
+```
+
+What is the impact of imputing missing data: Filling in missing values changes the median value from the original dataset, but not the mean. This makes sense given the nature of the mean and median functions.
+
+
+####**DIFFERENCES IN ACTIVITY PATTERNS BETWEEN WEEKDAYS AND WEEKENDS**
+
+1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r, echo=TRUE}
+datNoNA[,4] <- factor(weekdays(as.Date(datNoNA$date)), levels=c("weekday","weekend"))
+
+for (i in 1:nrow(datNoNA)) {
+  wday <- weekdays(as.Date(datNoNA[i,2],"%Y-%m-%d"))
+  
+  if(wday == "Saturday" | wday == "Sunday") {
+    datNoNA[i,4] <- "weekend"
+  }
+  else {
+    datNoNA[i,4] <- "weekday"
+  }
+}
+names(datNoNA) <- c("steps","date","interval","weekday")
+```
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+Filter into weekday/weekend data.
+```{r, echo=TRUE}
+weekdayMean <- datNoNA %>% filter(weekday=="weekday") %>% group_by(interval) %>% summarize(meansteps = mean(steps))
+weekendMean <- datNoNA %>% filter(weekday=="weekend") %>% group_by(interval) %>% summarize(meansteps = mean(steps))
+```
+
+Let's see our data plotted...
+```{r, echo=TRUE}
+par(mfrow=c(2,1), lab=c(12,10,5))
+plot(weekdayMean, type="l", xlab="Time Interval", ylab="Average Steps", main="Weekend", col="green")
+plot(weekendMean, type="l", xlab="Time Interval", ylab="Average Steps", main="Weekday", col="blue")
+dev.print(png, file="./figures/plot4.png", width=480, height=480, pointsize=10)
+dev.off()
+```
+
